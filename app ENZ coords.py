@@ -56,24 +56,20 @@ if uploaded_file is not None:
         # Position (Bottom Left Corner)
         text_position = (int(img.width * 0.05), int(img.height * 0.82))
         
-        # DRAW ONLY MAIN TEXT (Shadow text completely removed)
+        # DRAW ONLY MAIN TEXT
         draw.text(text_position, stamp_text, fill="yellow", font=font)
         
         st.success("✅ Grid Coordinates Burned Into Image!")
-        st.image(img, caption="Stamped Preview", use_container_width=True)
         
-        # 3. SAFE & COMPATIBLE DOWNLOAD METHOD
-        # Converts image to bytes safely in memory
-        buffered = BytesIO()
-        img.save(buffered, format="JPEG")
-        byte_data = buffered.getvalue()
-        filename = f"OSGB_E{int(easting_val)}_N{int(northing_val)}.jpg"
+        # Display the final image clearly
+        st.image(img, caption="Your Stamped Photo", use_container_width=True)
         
-        # This native button is completely immune to browser security crashes
-        st.download_button(
-            label="📥 CLICK HERE TO SAVE TO GALLERY",
-            data=byte_data,
-            file_name=filename,
-            mime="image/jpeg",
-            use_container_width=True  # Makes the button big and easy to tap on a phone screen
-        )
+        # 3. DIRECT SAVE INSTRUCTIONS (Replaces the broken download button)
+        st.markdown("""
+        ### 📥 HOW TO SAVE TO GALLERY:
+        1. **Press and hold your finger** down directly on the photo above for 2 seconds.
+        2. A menu will pop up on your phone screen.
+        3. Tap **'Save to Photos'** (iPhone) or **'Download Image'** (Android).
+        
+        *This saves it directly into your main camera roll gallery, completely skipping the files folders!*
+        """)

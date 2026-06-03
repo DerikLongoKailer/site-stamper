@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit_geolocation import streamlit_geolocation
 from PIL import Image, ImageDraw, ImageFont
+import PIL.ImageOps
 from pyproj import Transformer
 
 # Page Configurations
@@ -8,7 +9,7 @@ st.set_page_config(page_title="Auto UK Site Stamp", page_icon="🛰️", layout=
 
 st.title("🛰️ Automated UK Site Grid Stamper")
 
-# Initialize a session state variable to handle resetting the camera
+# Initialize session state variable to handle resetting the camera
 if "photo_reset" not in st.session_state:
     st.session_state.photo_reset = False
 
@@ -40,10 +41,8 @@ else:
 # 2. CAMERA INPUT
 st.subheader("2. Snap Site Photo")
 
-# If the user pressed reset, we bypass showing the old photo data
 if st.session_state.photo_reset:
     uploaded_file = None
-    # Instantly turn the reset flag back off so the camera works again
     st.session_state.photo_reset = False
     st.rerun()
 
@@ -53,19 +52,30 @@ if uploaded_file is not None:
     if easting_val is None or northing_val is None:
         st.error("❌ Stop! You must fetch GPS coordinates before taking the picture.")
     else:
-        img = Image.open(uploaded_file)
+        raw_img = Image.open(uploaded_file)
         
         # Ensure correct image rotation based on phone orientation metadata
         try:
-            import PIL.ImageOps
-            img = PIL.ImageOps.exif_transpose(img)
+            raw_img = PIL.ImageOps.exif_transpose(raw_img)
         except Exception:
             pass
-            
+
+        # --- ADVANCED ULTRA-SHARP HD RESAMPLING ENGINE ---
+        # We manually blow up the canvas to a massive width (e.g., 3000px) using high-quality LANCZOS interpolation
+        # This increases the pixel density dramatically so the font engine has sharp sub-pixels to draw on.
+        target_width = 3000
+        w_percent = (target_width / float(raw_img.size[0]))
+        target_height = int((float(raw_img.size[1]) * float(w_percent)))
+        
+        # High-Fidelity upscale
+        img = raw_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        
         stamp_text = f"UK Grid (OSGB36)\nE: {easting_val}\nN: {northing_val}"
         
         draw = ImageDraw.Draw(img)
-        font_size = int(img.width * 0.04)
+        
+        # Dynamic font scaling based on our new 3000px crisp baseline
+        font_size = int(img.width * 0.035)
         
         try:
             font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", font_size)
@@ -75,11 +85,14 @@ if uploaded_file is not None:
             except IOError:
                 font = ImageFont.load_default(size=font_size)
 
-        text_position = (int(img.width * 0.05), int(img.height * 0.85))
+        # Set position relative to the new high-res canvas sizes
+        text_position = (int(img.width * 0.05), int(img.height * 0.86))
+        
+        # Draw text at maximum anti-aliasing quality
         draw.text(text_position, stamp_text, fill="yellow", font=font)
         
-        st.success("✅ Grid Coordinates Burned Into Image!")
-        st.image(img, caption="Your Stamped Photo", use_container_width=True)
+        st.success("✅ Ultra-HD Grid Coordinates Burned!")
+        st.image(img, caption="Your Stamped Photo (High Resolution)", use_container_width=True)
         
         st.markdown("""
         ### 📥 HOW TO SAVE TO GALLERY:
@@ -89,8 +102,6 @@ if uploaded_file is not None:
         
         st.markdown("---")
         
-        # 3. NEXT PICTURE RESET TRIGGER
-        # Big blue button that clears the screen for the next layout shot
         if st.button("📸 CLEAR & TAKE NEXT PICTURE", type="primary", use_container_width=True):
             st.session_state.photo_reset = True
             st.rerun()

@@ -3,6 +3,7 @@ from streamlit_geolocation import streamlit_geolocation
 from PIL import Image, ImageDraw, ImageFont
 import PIL.ImageOps
 from pyproj import Transformer
+from datetime import datetime
 
 # Page Configurations
 st.set_page_config(page_title="Auto UK Site Stamp", page_icon="🛰️", layout="centered")
@@ -89,6 +90,9 @@ if uploaded_file is not None:
     else:
         raw_img = Image.open(uploaded_file)
         
+        # Capture the exact timestamp the image was processed
+        current_time_str = datetime.now().strftime("%d/%m/%Y  %H:%M:%S")
+        
         try:
             raw_img = PIL.ImageOps.exif_transpose(raw_img)
         except Exception:
@@ -100,7 +104,9 @@ if uploaded_file is not None:
         target_height = int((float(raw_img.size[1]) * float(w_percent)))
         img = raw_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
         
-        stamp_text = f"UK Grid (OSGB36)\nE: {easting_val}\nN: {northing_val}"
+        # Combine the timestamp and grid readings into one clean block
+        stamp_text = f"Date/Time: {current_time_str}\nUK Grid (OSGB36)\nE: {easting_val}\nN: {northing_val}"
+        
         draw = ImageDraw.Draw(img)
         font_size = int(img.width * 0.035)
         
@@ -112,10 +118,11 @@ if uploaded_file is not None:
             except IOError:
                 font = ImageFont.load_default(size=font_size)
 
-        text_position = (int(img.width * 0.05), int(img.height * 0.86))
+        # Shifted slightly up to 80% of image height to comfortably make room for the extra time row
+        text_position = (int(img.width * 0.05), int(img.height * 0.80))
         draw.text(text_position, stamp_text, fill="yellow", font=font)
         
-        st.success("✅ Ultra-HD Grid Coordinates Burned!")
+        st.success("✅ Ultra-HD Grid Coordinates & Time Burned!")
         st.image(img, caption="Your Stamped Photo (High Resolution)", use_container_width=True)
         
         st.markdown("""

@@ -47,7 +47,7 @@ if uploaded_file is not None:
         stamp_text = f"UK Grid (OSGB36)\nE: {easting_val}\nN: {northing_val}"
         
         draw = ImageDraw.Draw(img)
-        font_size = int(img.width * 0.035)
+        font_size = int(img.width * 0.155)
         try:
             font = ImageFont.truetype("LiberationSans-Bold.ttf", font_size)
         except IOError:
@@ -57,7 +57,7 @@ if uploaded_file is not None:
         text_position = (int(img.width * 0.05), int(img.height * 0.82))
         
         # DRAW ONLY MAIN TEXT
-        draw.text(text_position, stamp_text, fill="yellow", font=font)
+        draw.text(text_position, stamp_text, fill="red", font=font)
         
         st.success("✅ Grid Coordinates Burned Into Image!")
         

@@ -1,9 +1,7 @@
-Python
 import streamlit as st
 from streamlit_geolocation import streamlit_geolocation
 from PIL import Image, ImageDraw, ImageFont
 from pyproj import Transformer
-import base64
 from io import BytesIO
 
 # Page Configurations
@@ -49,7 +47,7 @@ if uploaded_file is not None:
         stamp_text = f"UK Grid (OSGB36)\nE: {easting_val}\nN: {northing_val}"
         
         draw = ImageDraw.Draw(img)
-        font_size = int(img.width * 0.135)
+        font_size = int(img.width * 0.035)
         try:
             font = ImageFont.truetype("LiberationSans-Bold.ttf", font_size)
         except IOError:
@@ -58,29 +56,24 @@ if uploaded_file is not None:
         # Position (Bottom Left Corner)
         text_position = (int(img.width * 0.05), int(img.height * 0.82))
         
-        # DRAW ONLY MAIN TEXT (Shadow text completely removed here)
+        # DRAW ONLY MAIN TEXT (Shadow text completely removed)
         draw.text(text_position, stamp_text, fill="yellow", font=font)
         
         st.success("✅ Grid Coordinates Burned Into Image!")
         st.image(img, caption="Stamped Preview", use_container_width=True)
         
-        # 3. THE SEMI-AUTOMATIC DOWNLOAD TRIGGER
-        # This converts the file to web-data and tricks the phone browser into downloading it instantly
+        # 3. SAFE & COMPATIBLE DOWNLOAD METHOD
+        # Converts image to bytes safely in memory
         buffered = BytesIO()
         img.save(buffered, format="JPEG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
+        byte_data = buffered.getvalue()
         filename = f"OSGB_E{int(easting_val)}_N{int(northing_val)}.jpg"
         
-        # Injecting an automatic browser download prompt injection
-        components_code = f"""
-            <script>
-            var a = window.parent.document.createElement('a');
-            a.href = 'data:image/jpeg;base64,{img_str}';
-            a.download = '{filename}';
-            window.parent.document.body.appendChild(a);
-            a.click();
-            window.parent.document.body.removeChild(a);
-            </script>
-        """
-        st.components.v1.html(components_code, height=0)
-        st.info("📥 Check your phone's Notification Bar, Downloads folder, or Gallery for the saved image!
+        # This native button is completely immune to browser security crashes
+        st.download_button(
+            label="📥 CLICK HERE TO SAVE TO GALLERY",
+            data=byte_data,
+            file_name=filename,
+            mime="image/jpeg",
+            use_container_width=True  # Makes the button big and easy to tap on a phone screen
+        )

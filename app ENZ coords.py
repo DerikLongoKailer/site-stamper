@@ -53,7 +53,7 @@ if uploaded_file is not None:
         
         # Smart text scaling based on picture size
         draw = ImageDraw.Draw(img)
-        font_size = int(img.width * 0.035)
+        font_size = int(img.width * 0.085)
         try:
             font = ImageFont.truetype("LiberationSans-Bold.ttf", font_size)
         except IOError:
@@ -62,9 +62,9 @@ if uploaded_file is not None:
         # Position (Bottom Left Corner)
         text_position = (int(img.width * 0.05), int(img.height * 0.82))
         
-        # Draw text drop shadow (black) and main text (yellow)
+        # Draw text drop shadow (black) and main text (white)
         draw.text((text_position[0]+3, text_position[1]+3), stamp_text, fill="black", font=font)
-        draw.text(text_position, stamp_text, fill="yellow", font=font)
+        draw.text(text_position, stamp_text, fill="white", font=font)
         
         st.success("✅ Grid Coordinates Burned Into Image!")
         st.image(img, caption="Stamped Preview", use_container_width=True)

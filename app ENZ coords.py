@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit_geolocation import streamlit_geolocation
 from PIL import Image, ImageDraw, ImageFont
 import PIL.ImageOps
 from pyproj import Transformer
@@ -11,22 +12,14 @@ st.title("🛰️ Automated UK Site Grid Stamper")
 # Initialize session state variables
 if "photo_reset" not in st.session_state:
     st.session_state.photo_reset = False
-if "lat" not in st.session_state:
-    st.session_state.lat = None
-if "lon" not in st.session_state:
-    st.session_state.lon = None
-if "accuracy" not in st.session_state:
-    st.session_state.accuracy = None
 
 # --- HIGH ACCURACY JAVASCRIPT GEOLOCATION ENGINE ---
-# This forces the phone browser to use the maximum possible hardware accuracy
 st.subheader("1. Get Location from Phone GPS")
 
 js_geo_script = """
 <script>
 function getLocation() {
   if (navigator.geolocation) {
-    // enableHighAccuracy: true forces the physical GPS chip on, timeout ensures fresh data
     navigator.geolocation.getCurrentPosition(showPosition, showError, {
         enableHighAccuracy: true,
         timeout: 10000,
@@ -41,7 +34,6 @@ function showPosition(position) {
         lon: position.coords.longitude,
         accuracy: position.coords.accuracy
     };
-    // Send data back to Streamlit
     window.parent.postMessage({type: 'streamlit:setComponentValue', value: data}, '*');
 }
 
@@ -49,30 +41,20 @@ function showError(error) {
     console.log(error);
 }
 
-// Automatically trigger on load
 getLocation();
 </script>
 """
 
-# Render the hidden high-accuracy tracking script
+# Render the high-accuracy tracking script hidden in the background
 with st.sidebar:
-    st.write("GPS Engine Status")
-    # Using streamlit's html wrapper to run our custom engine
-    raw_gps = st.components.v1.html(js_geo_script, height=0)
+    st.write("GPS Engine Active")
+    st.components.v1.html(js_geo_script, height=0)
 
-# Process the high-accuracy data coming from the phone hardware
-# Instead of standard component, we listen for the window message
-import json
-from streamlit_card import card
-
-# We keep using the standard layout UI but powered by high-accuracy tracking
-from streamlit_geolocation import streamlit_geolocation
 location = streamlit_geolocation()
 
 easting_val, northing_val = None, None
 
 if location and location.get('latitude') is not None:
-    # Our new configuration ensures these values come straight from the satellite chip
     lat = location['latitude']
     lon = location['longitude']
     accuracy = location.get('accuracy', 'Unknown')

@@ -1,92 +1,80 @@
 import streamlit as st
+from streamlit_geolocation import streamlit_geolocation
 from PIL import Image, ImageDraw, ImageFont
-import re
 from pyproj import Transformer
 
-# App Page Configurations
-st.set_page_config(page_title="UK Site Stamp", page_icon="🏗️", layout="centered")
+# Page Configurations
+st.set_page_config(page_title="Auto UK Site Stamp", page_icon="🛰️", layout="centered")
 
-st.title("🏗️ UK Site Grid Photo Stamper")
-st.write("Take a photo on-site or type coordinates to burn Easting & Northing directly onto the image.")
+st.title("🛰️ Automated UK Site Grid Stamper")
+st.write("Click 'Fetch Phone GPS' first, then snap your photo!")
 
-# Conversion logic: WGS84 (lat/lon) -> OSGB36 (UK National Grid)
-def convert_to_osgb36(lat, lon):
-    try:
-        transformer = Transformer.from_crs("epsg:4326", "epsg:27700", always_xy=True)
-        easting, northing = transformer.transform(lon, lat)
-        return round(easting, 2), round(northing, 2)
-    except Exception:
-        return None, None
-
-# Main coordinate input options
-mode = st.radio("Choose Input Method:", ("Type Coordinates Manually", "Use Mobile Camera (No Metadata)"))
+# 1. LIVE HARDWARE GPS FETCH BUTTON
+st.subheader("1. Get Location from Phone GPS")
+location = streamlit_geolocation()
 
 easting_val, northing_val = None, None
 
-if mode == "Type Coordinates Manually":
-    col1, col2 = st.columns(2)
-    with col1:
-        easting_input = st.text_input("Enter Easting (6 digits):", placeholder="e.g., 532145")
-    with col2:
-        northing_input = st.text_input("Enter Northing (6 digits):", placeholder="e.g., 180432")
+# If the phone provides GPS data, immediately convert it to OSGB36
+if location and location.get('latitude') is not None:
+    lat = location['latitude']
+    lon = location['longitude']
+    accuracy = location.get('accuracy', 'Unknown')
     
-    if easting_input and northing_input:
-        try:
-            easting_val = float(re.sub(r'[^\d.]', '', easting_input))
-            northing_val = float(re.sub(r'[^\d.]', '', northing_input))
-        except ValueError:
-            st.error("Please enter numbers only.")
-
-elif mode == "Use Mobile Camera (No Metadata)":
-    st.info("💡 Note: Standard web browsers strip GPS metadata from live uploads. Please provide your manual grid inputs below to overlay onto your photo.")
-    col1, col2 = st.columns(2)
-    with col1:
-        easting_input = st.text_input("Site Easting for stamp:", placeholder="532145")
-    with col2:
-        northing_input = st.text_input("Site Northing for stamp:", placeholder="180432")
+    # Convert WGS84 (lat/lon) -> OSGB36 (UK National Grid)
+    try:
+        transformer = Transformer.from_crs("epsg:4326", "epsg:27700", always_xy=True)
+        easting_val, northing_val = transformer.transform(lon, lat)
+        easting_val = round(easting_val, 2)
+        northing_val = round(northing_val, 2)
         
-    if easting_input and northing_input:
-        easting_val = float(easting_input)
-        northing_val = float(northing_input)
+        # Display the live tracked coordinates to the user
+        st.success(f"📍 GPS Locked! Accuracy: ±{accuracy}m")
+        st.metric(label="Current Easting (X)", value=f"{easting_val}")
+        st.metric(label="Current Northing (Y)", value=f"{northing_val}")
+    except Exception as e:
+        st.error("Error converting GPS coordinates to British National Grid.")
+else:
+    st.info("👋 Tap the small location button above. Your phone will ask: 'Allow web app to access your location?' Tap ALLOW.")
 
-# Image Upload / Camera Input UI
-uploaded_file = st.camera_input("Snap a Photo") if mode == "Use Mobile Camera (No Metadata)" else st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
+# 2. CAMERA INPUT
+st.subheader("2. Snap Site Photo")
+uploaded_file = st.camera_input("Take Picture")
 
 if uploaded_file is not None:
     if easting_val is None or northing_val is None:
-        st.warning("⚠️ Please input your Easting and Northing values above before processing the image.")
+        st.error("❌ Stop! You must tap the 'Fetch Phone GPS' button above and allow location tracking before taking the picture.")
     else:
-        # Open the image
+        # Open the freshly snapped photo
         img = Image.open(uploaded_file)
         
-        # Setup Text Overlay parameters
+        # Format the text overlay string
         stamp_text = f"UK Grid (OSGB36)\nE: {easting_val}\nN: {northing_val}"
         
-        # Dynamic font scaling based on photo width
+        # Smart text scaling based on picture size
         draw = ImageDraw.Draw(img)
         font_size = int(img.width * 0.035)
         try:
-            font = ImageFont.truetype("LiberationSans-Bold.ttf", font_size) # Common linux server font
+            font = ImageFont.truetype("LiberationSans-Bold.ttf", font_size)
         except IOError:
             font = ImageFont.load_default()
 
-        # Position (Bottom Left)
+        # Position (Bottom Left Corner)
         text_position = (int(img.width * 0.05), int(img.height * 0.82))
         
-        # Drawing text drop shadow for visibility over light/dark backgrounds
+        # Draw text drop shadow (black) and main text (yellow)
         draw.text((text_position[0]+3, text_position[1]+3), stamp_text, fill="black", font=font)
         draw.text(text_position, stamp_text, fill="yellow", font=font)
         
-        # Display results
-        st.success("✅ Coordinates Burned Successfully!")
-        st.image(img, caption="Stamped Output Preview", use_container_width=True)
+        st.success("✅ Grid Coordinates Burned Into Image!")
+        st.image(img, caption="Stamped Preview", use_container_width=True)
         
-        # Provide Download Button for the phone gallery
-        img.save("temp_output.jpg", format="JPEG")
-        with open("temp_output.jpg", "rb") as file:
+        # 3. SAVE DIRECTLY TO GALLERY BUTTON
+        img.save("site_stamp_output.jpg", format="JPEG")
+        with open("site_stamp_output.jpg", "rb") as file:
             st.download_button(
-                label="📥 Save Stamped Image to Phone",
+                label="📥 Save Stamped Photo to Gallery",
                 data=file,
-                file_name=f"Stamped_E{int(easting_val)}_N{int(northing_val)}.jpg",
+                file_name=f"OSGB_E{int(easting_val)}_N{int(northing_val)}.jpg",
                 mime="image/jpeg"
             )

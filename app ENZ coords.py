@@ -5,6 +5,7 @@ import PIL.ImageOps
 from pyproj import Transformer
 from datetime import datetime
 import zoneinfo
+import io
 
 # Page Configurations
 st.set_page_config(page_title="Auto UK Site Stamp", page_icon="🛰️", layout="centered")
@@ -12,8 +13,8 @@ st.set_page_config(page_title="Auto UK Site Stamp", page_icon="🛰️", layout=
 st.title("🛰️ Automated UK Site Grid Stamper")
 
 # Initialize session state variables
-if "photo_reset" not in st.session_state:
-    st.session_state.photo_reset = False
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
 
 # 1. LIVE HARDWARE GPS FETCH BUTTON
 st.subheader("1. Get Location from Phone GPS")
@@ -42,15 +43,15 @@ if location and location.get('latitude') is not None:
 else:
     st.info("👋 Tap the location button above and choose 'ALLOW' to fetch your live site grid.")
 
-# 2. CAMERA INPUT
+# 2. CAMERA/FILE INPUT
 st.subheader("2. Snap Site Photo")
 
-if st.session_state.photo_reset:
-    uploaded_file = None
-    st.session_state.photo_reset = False
-    st.rerun()
-
-uploaded_file = st.camera_input("Take Picture")
+# Unique key strategy used to reset the native file uploader widget cleanly
+uploaded_file = st.file_uploader(
+    "Tap below to take a Native High-Res Photo or upload from Gallery", 
+    type=["jpg", "jpeg", "png"],
+    key=f"uploader_{st.session_state.uploader_key}"
+)
 
 if uploaded_file is not None:
     if easting_val is None or northing_val is None:
@@ -59,7 +60,6 @@ if uploaded_file is not None:
         raw_img = Image.open(uploaded_file)
         
         # --- GUARANTEED UK LOCAL TIME ENGINE ---
-        # This forces the cloud server to fetch the exact time inside the UK timezone (handling BST automatically)
         uk_tz = zoneinfo.ZoneInfo("Europe/London")
         current_time_str = datetime.now(uk_tz).strftime("%d/%m/%Y  %H:%M:%S")
         
@@ -68,11 +68,14 @@ if uploaded_file is not None:
         except Exception:
             pass
 
-        # Ultra-HD Resampling Engine
+        # High-Quality Resampling Engine (Downscaling safely if the phone image is larger than 3000px width)
         target_width = 3000
-        w_percent = (target_width / float(raw_img.size[0]))
-        target_height = int((float(raw_img.size[1]) * float(w_percent)))
-        img = raw_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        if raw_img.width > target_width:
+            w_percent = (target_width / float(raw_img.size[0]))
+            target_height = int((float(raw_img.size[1]) * float(w_percent)))
+            img = raw_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        else:
+            img = raw_img.copy() # Keep native max details if smaller than 3000px
         
         # Combine the fixed timezone stamp and coordinates
         stamp_text = f"Date/Time: {current_time_str}\nUK Grid (OSGB36)\nE: {easting_val}\nN: {northing_val}"
@@ -88,20 +91,28 @@ if uploaded_file is not None:
             except IOError:
                 font = ImageFont.load_default(size=font_size)
 
+        # Dynamic text positioning relative to the high-res dimensions
         text_position = (int(img.width * 0.05), int(img.height * 0.80))
         draw.text(text_position, stamp_text, fill="yellow", font=font)
         
         st.success("✅ Ultra-HD Grid Coordinates & True UK Time Burned!")
         st.image(img, caption="Your Stamped Photo (High Resolution)", use_container_width=True)
         
-        st.markdown("""
-        ### 📥 HOW TO SAVE TO GALLERY:
-        1. **Press and hold your finger** down directly on the photo above for 2 seconds.
-        2. Tap **'Save to Photos'** or **'Download Image'**.
-        """)
+        # Download button alternative for cleaner image saving on modern browsers
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG", quality=95)
+        
+        st.download_button(
+            label="📥 DOWNLOAD STAMPED PHOTO TO GALLERY",
+            data=buffered.getvalue(),
+            file_name=f"SiteStamp_{easting_val}_{northing_val}.jpg",
+            mime="image/jpeg",
+            use_container_width=True,
+            type="secondary"
+        )
         
         st.markdown("---")
         
         if st.button("📸 CLEAR & TAKE NEXT PICTURE", type="primary", use_container_width=True):
-            st.session_state.photo_reset = True
+            st.session_state.uploader_key += 1
             st.rerun()
